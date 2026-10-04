@@ -45,7 +45,8 @@ export class InputSystem {
     const onMouseMove = (event: MouseEvent) => {
       if (document.pointerLockElement !== canvas) return;
       this.actions.lookX += event.movementX * 0.0022;
-      this.actions.lookY += event.movementY * 0.0020;
+      // Semantic lookY: +1 = look up. Mouse Y is positive when moving down.
+      this.actions.lookY -= event.movementY * 0.0020;
     };
     const requestPointerLock = () => {
       if (matchMedia("(pointer:fine)").matches) canvas.requestPointerLock?.();
@@ -116,7 +117,8 @@ export class InputSystem {
     }
 
     this.actions.lookX += (gamepad?.axes[2] ?? 0) * 0.09;
-    this.actions.lookY += (gamepad?.axes[3] ?? 0) * 0.075;
+    // Gamepad Y is positive down; normalize to semantic +lookY = up.
+    this.actions.lookY -= (gamepad?.axes[3] ?? 0) * 0.075;
     this.actions.sprint = this.down("ShiftLeft") || this.down("ShiftRight") ||
       !!gamepad?.buttons[10]?.pressed || this.virtual.has("run");
     this.actions.crouch = this.down("ControlLeft") || this.down("ControlRight") ||
@@ -186,7 +188,8 @@ export class InputSystem {
         this.sticks.moveY = deadzone(clamp(-dy / radius));
       } else {
         this.actions.lookX += clamp(dx * 0.0020, -0.12, 0.12);
-        this.actions.lookY += clamp(dy * 0.0017, -0.10, 0.10);
+        // Touch Y is positive down; normalize to semantic +lookY = up.
+        this.actions.lookY -= clamp(dy * 0.0017, -0.10, 0.10);
         point.x = event.clientX;
         point.y = event.clientY;
       }
