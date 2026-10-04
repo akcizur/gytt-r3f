@@ -12,6 +12,11 @@ const SPRINT_SPEED = 6.2;
 const CROUCH_SPEED = 1.8;
 const JUMP_SPEED = 7.2;
 
+const CAMERA_DISTANCE = 6.5;
+const CAMERA_MIN_Y = 0.25;
+const CAMERA_PITCH_MIN = -0.82;
+const CAMERA_PITCH_MAX = 0.68;
+
 export function GameRuntime({ bridge, paused }: { bridge: GameBridge; paused: boolean }) {
   return (
     <Physics
@@ -33,7 +38,9 @@ function PlayerController({ bridge, paused }: { bridge: GameBridge; paused: bool
   const { camera, gl } = useThree();
 
   const yawRef = useRef(0);
-  const pitchRef = useRef(-0.2);
+  // Positive pitch = camera moves above the target and looks downward.
+  // Negative pitch = camera moves below the target and looks upward.
+  const pitchRef = useRef(0.16);
   const characterYaw = useRef(0);
   const fpsRef = useRef({ time: performance.now(), frames: 0, fps: 0 });
 
@@ -55,7 +62,11 @@ function PlayerController({ bridge, paused }: { bridge: GameBridge; paused: bool
     // Screen-space convention: moving the look input right turns the camera right.
     // With Three.js Y rotation and a third-person orbit behind the player, this is -yaw.
     yawRef.current -= actions.lookX;
-    pitchRef.current = THREE.MathUtils.clamp(pitchRef.current + actions.lookY, -1.05, 0.35);
+    pitchRef.current = THREE.MathUtils.clamp(
+      pitchRef.current + actions.lookY,
+      CAMERA_PITCH_MIN,
+      CAMERA_PITCH_MAX,
+    );
 
     // Three.js world: +Y up, camera/player forward = -Z, +X = right.
     // Movement is camera-relative, so W follows camera forward and D follows camera right.
@@ -114,14 +125,25 @@ function PlayerController({ bridge, paused }: { bridge: GameBridge; paused: bool
     const target = new THREE.Vector3(position.x, position.y + 1.15, position.z);
     const cp = Math.cos(pitchRef.current);
     const sp = Math.sin(pitchRef.current);
-    const distance = 6.5;
+
+    // Standard third-person orbit:
+    // +Y = up, -Z = forward, positive pitch raises the camera.
     const desiredCamera = new THREE.Vector3(
-      target.x + Math.sin(yawRef.current) * cp * distance,
-      target.y - sp * distance,
-      target.z + Math.cos(yawRef.current) * cp * distance,
+      target.x + Math.sin(yawRef.current) * cp * CAMERA_DISTANCE,
+      Math.max(
+        CAMERA_MIN_Y,
+        target.y + sp * CAMERA_DISTANCE,
+      ),
+      target.z + Math.cos(yawRef.current) * cp * CAMERA_DISTANCE,
     );
 
-    camera.position.lerp(desiredCamera, 1 - Math.pow(0.0008, Math.min(delta, 0.1)));
+    camera.position.lerp(
+      desiredCamera,
+      1 - Math.pow(0.0008, Math.min(delta, 0.1)),
+    );
+
+    // Never allow the actual interpolated camera position to cross the ground plane.
+    camera.position.y = Math.max(CAMERA_MIN_Y, camera.position.y);
     camera.lookAt(target);
 
     const fps = fpsRef.current;
