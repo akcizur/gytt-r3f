@@ -43,6 +43,7 @@ function PlayerController({ bridge, paused }: { bridge: GameBridge; paused: bool
   // Negative pitch = camera moves below the target and looks upward.
   const pitchRef = useRef(0.16);
   const characterYaw = useRef(0);
+  const animationStateRef = useRef<PlayerAnimationState>("idle");
   const fpsRef = useRef({ time: performance.now(), frames: 0, fps: 0 });
 
   useEffect(() => {
@@ -64,7 +65,7 @@ function PlayerController({ bridge, paused }: { bridge: GameBridge; paused: bool
     // With Three.js Y rotation and a third-person orbit behind the player, this is -yaw.
     yawRef.current -= actions.lookX;
     pitchRef.current = THREE.MathUtils.clamp(
-      pitchRef.current - actions.lookY,
+      pitchRef.current + actions.lookY,
       CAMERA_PITCH_MIN,
       CAMERA_PITCH_MAX,
     );
