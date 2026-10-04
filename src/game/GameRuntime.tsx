@@ -18,7 +18,7 @@ export function GameRuntime({ bridge, paused }: { bridge: GameBridge; paused: bo
       paused={paused}
       gravity={[0, -18, 0]}
       timeStep={1 / 60}
-      interpolation={false}
+      interpolate={false}
     >
       <Environment />
       <PlayerController bridge={bridge} paused={paused} />
