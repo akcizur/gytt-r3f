@@ -39,7 +39,7 @@ function addTrack(
 
   tracks.push(
     new THREE.QuaternionKeyframeTrack(
-      `${bone.bone.name}.quaternion`,
+      `${bone.bone.uuid}.quaternion`,
       LOOP_TIMES,
       makeQuaternionKeys(
         bone.rest,
