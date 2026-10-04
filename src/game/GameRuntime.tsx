@@ -5,7 +5,8 @@ import { CapsuleCollider, Physics, RigidBody } from "@react-three/rapier";
 import type { GameBridge } from "../core/gameBridge";
 import { InputSystem } from "../input/InputSystem";
 import { Environment } from "../world/Environment";
-import { PlayerVisual } from "../player/PlayerVisual";\nimport type { PlayerAnimationState } from "../player/PlayerAnimationSystem";
+import { PlayerVisual } from "../player/PlayerVisual";
+import type { PlayerAnimationState } from "../player/PlayerAnimationSystem";
 
 const MOVE_SPEED = 3.6;
 const SPRINT_SPEED = 6.2;
