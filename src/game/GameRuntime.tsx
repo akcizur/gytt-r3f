@@ -52,8 +52,9 @@ function PlayerController({ bridge, paused }: { bridge: GameBridge; paused: bool
     }
 
     const actions = input.sample();
-    // Semantic contract: +lookX = turn camera right, +lookY = look up.
-    yawRef.current += actions.lookX;
+    // Screen-space convention: moving the look input right turns the camera right.
+    // With Three.js Y rotation and a third-person orbit behind the player, this is -yaw.
+    yawRef.current -= actions.lookX;
     pitchRef.current = THREE.MathUtils.clamp(pitchRef.current + actions.lookY, -1.05, 0.35);
 
     // Three.js world: +Y up, camera/player forward = -Z, +X = right.
