@@ -144,10 +144,12 @@ export function createPlayerAnimationClips(root: THREE.Object3D) {
 
 export class PlayerAnimationController {
   private readonly mixer: THREE.AnimationMixer;
+  private readonly root: THREE.Object3D;
   private readonly actions = new Map<PlayerAnimationState, THREE.AnimationAction>();
   private current: PlayerAnimationState = "idle";
 
   constructor(root: THREE.Object3D, clips: THREE.AnimationClip[]) {
+    this.root = root;
     this.mixer = new THREE.AnimationMixer(root);
 
     for (const clip of clips) {
@@ -184,6 +186,6 @@ export class PlayerAnimationController {
 
   dispose() {
     this.mixer.stopAllAction();
-    this.mixer.uncacheRoot(this.mixer.getRoot());
+    this.mixer.uncacheRoot(this.root);
   }
 }
