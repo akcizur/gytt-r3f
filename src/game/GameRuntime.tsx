@@ -5,7 +5,7 @@ import { CapsuleCollider, Physics, RigidBody } from "@react-three/rapier";
 import type { GameBridge } from "../core/gameBridge";
 import { InputSystem } from "../input/InputSystem";
 import { Environment } from "../world/Environment";
-import { PlayerVisual } from "../player/PlayerVisual";
+import { PlayerVisual } from "../player/PlayerVisual";\nimport type { PlayerAnimationState } from "../player/PlayerAnimationSystem";
 
 const MOVE_SPEED = 3.6;
 const SPRINT_SPEED = 6.2;
@@ -63,7 +63,7 @@ function PlayerController({ bridge, paused }: { bridge: GameBridge; paused: bool
     // With Three.js Y rotation and a third-person orbit behind the player, this is -yaw.
     yawRef.current -= actions.lookX;
     pitchRef.current = THREE.MathUtils.clamp(
-      pitchRef.current + actions.lookY,
+      pitchRef.current - actions.lookY,
       CAMERA_PITCH_MIN,
       CAMERA_PITCH_MAX,
     );
@@ -109,7 +109,7 @@ function PlayerController({ bridge, paused }: { bridge: GameBridge; paused: bool
     }
 
     const horizontalSpeed = Math.hypot(velocity.x, velocity.z);
-    const playerState =
+    const playerState: PlayerAnimationState =
       !grounded
         ? velocity.y > 0.5 ? "jump" : "fall"
         : actions.crouch
@@ -121,6 +121,8 @@ function PlayerController({ bridge, paused }: { bridge: GameBridge; paused: bool
               : magnitude < 0.78
                 ? "jog"
                 : "run";
+
+    animationStateRef.current = playerState;
 
     const target = new THREE.Vector3(position.x, position.y + 1.15, position.z);
     const cp = Math.cos(pitchRef.current);
@@ -183,7 +185,7 @@ function PlayerController({ bridge, paused }: { bridge: GameBridge; paused: bool
       userData={{ kind: "player" }}
     >
       <CapsuleCollider args={[0.68, 0.38]} position={[0, 1.06, 0]} friction={0.1} />
-      <PlayerVisual ref={visualRef} paused={paused} />
+      <PlayerVisual ref={visualRef} paused={paused} animationStateRef={animationStateRef} />
     </RigidBody>
   );
 }
