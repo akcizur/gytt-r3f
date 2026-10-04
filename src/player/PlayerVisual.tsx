@@ -9,6 +9,8 @@ import {
   type PlayerAnimationState,
 } from "./PlayerAnimationSystem";
 
+const PLAYER_HEIGHT_METERS = 1.8;
+
 const MODEL_URL = new URL("./Rigged character.gltf", import.meta.url).href;
 const BIN_URL = new URL("./Rigged character.bin", import.meta.url).href;
 
@@ -49,11 +51,17 @@ export const PlayerVisual = forwardRef<THREE.Group, Props>(
           const size = bounds.getSize(new THREE.Vector3());
 
           if (size.y > 0.001) {
-            model.scale.multiplyScalar(1.85 / size.y);
+            model.scale.multiplyScalar(PLAYER_HEIGHT_METERS / size.y);
           }
 
           const normalizedBounds = new THREE.Box3().setFromObject(model);
           model.position.y -= normalizedBounds.min.y;
+
+          // Authoritative floor anchor: the lowest visible vertex is exactly Y=0.
+          const anchoredBounds = new THREE.Box3().setFromObject(model);
+          if (Math.abs(anchoredBounds.min.y) > 0.0001) {
+            model.position.y -= anchoredBounds.min.y;
+          }
           model.rotation.y = Math.PI;
 
           model.traverse((object) => {
