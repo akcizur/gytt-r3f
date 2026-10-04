@@ -52,7 +52,8 @@ function PlayerController({ bridge, paused }: { bridge: GameBridge; paused: bool
     }
 
     const actions = input.sample();
-    yawRef.current += actions.lookX;
+    // Positive X input = look right. Camera orbit uses the opposite yaw sign.
+    yawRef.current -= actions.lookX;
     pitchRef.current = THREE.MathUtils.clamp(pitchRef.current + actions.lookY, -1.05, 0.35);
 
     const forward = new THREE.Vector3(Math.sin(yawRef.current), 0, -Math.cos(yawRef.current));
