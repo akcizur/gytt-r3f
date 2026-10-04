@@ -13,6 +13,10 @@ const SPRINT_SPEED = 6.2;
 const CROUCH_SPEED = 1.8;
 const JUMP_SPEED = 7.2;
 
+const PLAYER_HEIGHT_METERS = 1.8;
+const PLAYER_COLLIDER_RADIUS = 0.32;
+const PLAYER_COLLIDER_HALF_HEIGHT = (PLAYER_HEIGHT_METERS - PLAYER_COLLIDER_RADIUS * 2) * 0.5;
+
 const CAMERA_DISTANCE = 6.5;
 const CAMERA_MIN_Y = 0.25;
 const CAMERA_PITCH_MIN = -0.82;
@@ -186,7 +190,11 @@ function PlayerController({ bridge, paused }: { bridge: GameBridge; paused: bool
       ccd
       userData={{ kind: "player" }}
     >
-      <CapsuleCollider args={[0.68, 0.38]} position={[0, 1.06, 0]} friction={0.1} />
+      <CapsuleCollider
+        args={[PLAYER_COLLIDER_HALF_HEIGHT, PLAYER_COLLIDER_RADIUS]}
+        position={[0, PLAYER_HEIGHT_METERS * 0.5, 0]}
+        friction={0.1}
+      />
       <PlayerVisual ref={visualRef} paused={paused} animationStateRef={animationStateRef} />
     </RigidBody>
   );
