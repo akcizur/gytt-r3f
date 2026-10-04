@@ -50,3 +50,20 @@ Camera orbit uses the same yaw/pitch convention as the normalized look actions; 
 ## Camera floor invariant
 
 The third-person camera is orbit-based around the player target. The camera world-space Y is clamped to CAMERA_MIN_Y after interpolation, so smoothing can never move the actual camera below the ground plane at Y = 0.
+
+## Camera collision model
+
+The camera is implemented as a third-person spring arm:
+
+- the orbit direction is computed from the normalized yaw/pitch contract;
+- a Rapier ray is cast from the player target to the requested camera distance;
+- the player's own rigid body is excluded from that query;
+- on obstruction, the boom retracts with a fast damping response;
+- when the path is clear, the boom returns with slower damping for stable framing;
+- the final camera Y is hard-clamped above CAMERA_MIN_Y, so smoothing cannot place the render camera below the world ground plane.
+
+This prevents the common third-person failure modes of wall penetration, camera snapping and ground-plane crossover.
+
+## Player visual pipeline
+
+The player uses the rigged asset stored in src/player. The GLTF and BIN are treated as Vite assets through import.meta.url, while the GLTF loader redirects its external BIN URI to the emitted asset URL. The source asset currently contains a rig but no animation clips, so the R3F runtime applies a lightweight procedural gait to the main leg, arm and spine bones.
