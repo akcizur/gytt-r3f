@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import {
   CapsuleCollider,
@@ -32,17 +32,15 @@ const CAMERA_PITCH_MAX = 0.68;
 
 export function GameRuntime({ bridge, paused }: { bridge: GameBridge; paused: boolean }) {
   return (
-    <Suspense fallback={null}>
-      <Physics
-        paused={paused}
-        gravity={[0, -18, 0]}
-        timeStep={1 / 60}
-        interpolate={false}
-      >
-        <Environment />
-        <PlayerController bridge={bridge} paused={paused} />
-      </Physics>
-    </Suspense>
+    <Physics
+      paused={paused}
+      gravity={[0, -18, 0]}
+      timeStep={1 / 60}
+      interpolate={false}
+    >
+      <Environment />
+      <PlayerController bridge={bridge} paused={paused} />
+    </Physics>
   );
 }
 
