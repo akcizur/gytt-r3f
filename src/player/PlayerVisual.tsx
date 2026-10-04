@@ -1,4 +1,4 @@
-import { forwardRef, useFrame, useImperativeHandle, useMemo, useRef } from "react";
+import { forwardRef, useFrame, useMemo, useRef } from "react";
 import { useLoader } from "@react-three/fiber";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -25,8 +25,6 @@ export const PlayerVisual = forwardRef<THREE.Group, { paused: boolean }>(
         return url;
       });
     });
-
-    useImperativeHandle(forwardedRef, () => groupRef.current as THREE.Group, []);
 
     const model = useMemo(() => {
       const root = SkeletonUtils.clone(gltf.scene);
@@ -143,6 +141,15 @@ export const PlayerVisual = forwardRef<THREE.Group, { paused: boolean }>(
       }
     });
 
-    return <group ref={groupRef}>{model && <primitive object={model} />}</group>;
+    const setGroupRef = (node: THREE.Group | null) => {
+      groupRef.current = node;
+      if (typeof forwardedRef === "function") {
+        forwardedRef(node);
+      } else if (forwardedRef) {
+        forwardedRef.current = node;
+      }
+    };
+
+    return <group ref={setGroupRef}>{model && <primitive object={model} />}</group>;
   },
 );
