@@ -45,3 +45,8 @@ The runtime uses the conventional Three.js/game coordinate contract:
 Keyboard, mouse, touch and gamepad inputs are normalized into that semantic contract before gameplay consumes them. Character heading uses local -Z as visual forward. Movement is camera-relative, so W follows the current camera heading and D moves to the camera's right.
 
 Camera orbit uses the same yaw/pitch convention as the normalized look actions; the player model follows its actual movement vector rather than using a separate mirrored axis.
+
+
+## Camera floor invariant
+
+The third-person camera is orbit-based around the player target. The camera world-space Y is clamped to CAMERA_MIN_Y after interpolation, so smoothing can never move the actual camera below the ground plane at Y = 0.
