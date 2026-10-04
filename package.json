@@ -1,0 +1,29 @@
+{
+  "name": "gytt-r3f",
+  "version": "4.0.0-dev",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "build": "vite build",
+    "verify": "npm run typecheck && npm run build"
+  },
+  "dependencies": {
+    "@react-three/fiber": "9.8.1",
+    "@react-three/rapier": "2.2.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "three": "0.186.1"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@types/three": "0.186.0",
+    "typescript": "5.9.2",
+    "vite": "8.3.2"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}
