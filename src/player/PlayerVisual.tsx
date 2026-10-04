@@ -1,60 +1,112 @@
-import { forwardRef, useRef } from "react";
-import * as THREE from "three";
+import { forwardRef, useEffect, useRef, type RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
+import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import * as SkeletonUtils from "three/examples/jsm/utils/SkeletonUtils.js";
+import {
+  createPlayerAnimationClips,
+  PlayerAnimationController,
+  type PlayerAnimationState,
+} from "./PlayerAnimationSystem";
 
-export const PlayerVisual = forwardRef<THREE.Group, { paused: boolean }>(
-  function PlayerVisual({ paused }, forwardedRef) {
-    const leftLeg = useRef<THREE.Mesh>(null);
-    const rightLeg = useRef<THREE.Mesh>(null);
-    const leftArm = useRef<THREE.Mesh>(null);
-    const rightArm = useRef<THREE.Mesh>(null);
-    const head = useRef<THREE.Mesh>(null);
-    const phase = useRef(0);
+const MODEL_URL = new URL("./Rigged character.gltf", import.meta.url).href;
+const BIN_URL = new URL("./Rigged character.bin", import.meta.url).href;
 
-    useFrame((state, delta) => {
-      if (paused) return;
-      phase.current += delta * 9;
-      const stride = Math.sin(phase.current) * 0.5;
-      const breathe = Math.sin(state.clock.elapsedTime * 2.1) * 0.015;
+type Props = {
+  paused: boolean;
+  animationStateRef: RefObject<PlayerAnimationState>;
+};
 
-      if (leftLeg.current) leftLeg.current.rotation.x = stride;
-      if (rightLeg.current) rightLeg.current.rotation.x = -stride;
-      if (leftArm.current) leftArm.current.rotation.x = -stride * 0.65;
-      if (rightArm.current) rightArm.current.rotation.x = stride * 0.65;
-      if (head.current) head.current.position.y = 1.63 + breathe;
+export const PlayerVisual = forwardRef<THREE.Group, Props>(
+  function PlayerVisual({ paused, animationStateRef }, forwardedRef) {
+    const groupRef = useRef<THREE.Group>(null);
+    const modelRef = useRef<THREE.Group | null>(null);
+    const animationRef = useRef<PlayerAnimationController | null>(null);
+
+    useEffect(() => {
+      let cancelled = false;
+
+      const manager = new THREE.LoadingManager();
+      manager.setURLModifier((url) => {
+        if (
+          url.endsWith("Rigged%20character.bin") ||
+          url.endsWith("Rigged character.bin")
+        ) {
+          return BIN_URL;
+        }
+        return url;
+      });
+
+      const loader = new GLTFLoader(manager);
+
+      loader.load(
+        MODEL_URL,
+        (gltf) => {
+          if (cancelled) return;
+
+          const model = SkeletonUtils.clone(gltf.scene) as THREE.Group;
+          const bounds = new THREE.Box3().setFromObject(model);
+          const size = bounds.getSize(new THREE.Vector3());
+
+          if (size.y > 0.001) {
+            model.scale.multiplyScalar(1.85 / size.y);
+          }
+
+          const normalizedBounds = new THREE.Box3().setFromObject(model);
+          model.position.y -= normalizedBounds.min.y;
+          model.rotation.y = Math.PI;
+
+          model.traverse((object) => {
+            const mesh = object as THREE.Mesh;
+            if (!mesh.isMesh) return;
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            mesh.frustumCulled = true;
+          });
+
+          animationRef.current?.dispose();
+
+          const clips = createPlayerAnimationClips(model);
+          animationRef.current = new PlayerAnimationController(model, clips);
+          modelRef.current = model;
+
+          if (groupRef.current) {
+            groupRef.current.clear();
+            groupRef.current.add(model);
+          }
+        },
+        undefined,
+        () => {
+          modelRef.current = null;
+          animationRef.current?.dispose();
+          animationRef.current = null;
+        },
+      );
+
+      return () => {
+        cancelled = true;
+        animationRef.current?.dispose();
+        animationRef.current = null;
+      };
+    }, []);
+
+    useFrame((_, delta) => {
+      if (paused || !animationRef.current) return;
+
+      animationRef.current.play(animationStateRef.current);
+      animationRef.current.update(delta);
     });
 
-    return (
-      <group ref={forwardedRef}>
-        <mesh position={[0, 0.98, 0]} castShadow>
-          <capsuleGeometry args={[0.28, 0.65, 5, 10]} />
-          <meshStandardMaterial color="#3d73b8" roughness={0.8} />
-        </mesh>
-        <mesh ref={head} position={[0, 1.63, 0]} castShadow>
-          <sphereGeometry args={[0.28, 16, 12]} />
-          <meshStandardMaterial color="#79a1cf" roughness={0.75} />
-        </mesh>
-        <mesh position={[0, 1.64, -0.275]} castShadow>
-          <boxGeometry args={[0.32, 0.08, 0.025]} />
-          <meshStandardMaterial color="#17202a" roughness={0.9} />
-        </mesh>
-        <mesh ref={leftArm} position={[-0.39, 1.03, 0]} castShadow>
-          <capsuleGeometry args={[0.1, 0.55, 4, 8]} />
-          <meshStandardMaterial color="#2f5b8e" roughness={0.82} />
-        </mesh>
-        <mesh ref={rightArm} position={[0.39, 1.03, 0]} castShadow>
-          <capsuleGeometry args={[0.1, 0.55, 4, 8]} />
-          <meshStandardMaterial color="#2f5b8e" roughness={0.82} />
-        </mesh>
-        <mesh ref={leftLeg} position={[-0.16, 0.44, 0]} castShadow>
-          <capsuleGeometry args={[0.11, 0.62, 4, 8]} />
-          <meshStandardMaterial color="#17202a" roughness={0.92} />
-        </mesh>
-        <mesh ref={rightLeg} position={[0.16, 0.44, 0]} castShadow>
-          <capsuleGeometry args={[0.11, 0.62, 4, 8]} />
-          <meshStandardMaterial color="#17202a" roughness={0.92} />
-        </mesh>
-      </group>
-    );
+    const setGroupRef = (node: THREE.Group | null) => {
+      groupRef.current = node;
+
+      if (typeof forwardedRef === "function") {
+        forwardedRef(node);
+      } else if (forwardedRef) {
+        forwardedRef.current = node;
+      }
+    };
+
+    return <group ref={setGroupRef} />;
   },
 );
