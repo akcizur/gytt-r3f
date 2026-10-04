@@ -1,5 +1,5 @@
-import { forwardRef, useFrame, useMemo, useRef } from "react";
-import { useLoader } from "@react-three/fiber";
+import { forwardRef, useEffect, useMemo, useRef, useState } from "react";
+import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import * as SkeletonUtils from "three/examples/jsm/utils/SkeletonUtils.js";
@@ -7,15 +7,22 @@ import * as SkeletonUtils from "three/examples/jsm/utils/SkeletonUtils.js";
 const MODEL_URL = new URL("./Rigged character.gltf", import.meta.url).href;
 const BIN_URL = new URL("./Rigged character.bin", import.meta.url).href;
 
+type LoadedPlayer = {
+  model: THREE.Object3D;
+};
+
 export const PlayerVisual = forwardRef<THREE.Group, { paused: boolean }>(
   function PlayerVisual({ paused }, forwardedRef) {
     const groupRef = useRef<THREE.Group>(null);
     const lastParentPosition = useRef(new THREE.Vector3());
     const initializedParentPosition = useRef(false);
     const phase = useRef(0);
+    const [loadedPlayer, setLoadedPlayer] = useState<LoadedPlayer | null>(null);
 
-    const gltf = useLoader(GLTFLoader, MODEL_URL, (loader) => {
-      loader.manager.setURLModifier((url) => {
+    useEffect(() => {
+      let cancelled = false;
+      const manager = new THREE.LoadingManager();
+      manager.setURLModifier((url) => {
         if (
           url.endsWith("Rigged%20character.bin") ||
           url.endsWith("Rigged character.bin")
@@ -24,30 +31,50 @@ export const PlayerVisual = forwardRef<THREE.Group, { paused: boolean }>(
         }
         return url;
       });
-    });
 
-    const model = useMemo(() => {
-      const root = SkeletonUtils.clone(gltf.scene);
+      const loader = new GLTFLoader(manager);
 
-      const bounds = new THREE.Box3().setFromObject(root);
-      const size = bounds.getSize(new THREE.Vector3());
-      if (size.y > 0.001) root.scale.multiplyScalar(1.85 / size.y);
+      loader
+        .loadAsync(MODEL_URL)
+        .then((gltf) => {
+          if (cancelled) return;
 
-      const normalizedBounds = new THREE.Box3().setFromObject(root);
-      root.position.y -= normalizedBounds.min.y;
-      root.rotation.y = Math.PI;
+          const root = SkeletonUtils.clone(gltf.scene);
+          const bounds = new THREE.Box3().setFromObject(root);
+          const size = bounds.getSize(new THREE.Vector3());
 
-      root.traverse((object) => {
-        const mesh = object as THREE.Mesh;
-        if (!mesh.isMesh) return;
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-      });
+          if (size.y > 0.001) {
+            root.scale.multiplyScalar(1.85 / size.y);
+          }
 
-      return root;
-    }, [gltf.scene]);
+          const normalizedBounds = new THREE.Box3().setFromObject(root);
+          root.position.y -= normalizedBounds.min.y;
+          root.rotation.y = Math.PI;
+
+          root.traverse((object) => {
+            const mesh = object as THREE.Mesh;
+            if (!mesh.isMesh) return;
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            mesh.frustumCulled = true;
+          });
+
+          setLoadedPlayer({ model: root });
+        })
+        .catch(() => {
+          // The procedural character below is intentionally kept as a runtime fallback.
+          if (!cancelled) setLoadedPlayer(null);
+        });
+
+      return () => {
+        cancelled = true;
+      };
+    }, []);
 
     const rig = useMemo(() => {
+      if (!loadedPlayer) return [];
+
+      const model = loadedPlayer.model;
       const boneNames = [
         "Root",
         "spine",
@@ -78,7 +105,9 @@ export const PlayerVisual = forwardRef<THREE.Group, { paused: boolean }>(
             rest: THREE.Quaternion;
           } => entry !== null,
         );
-    }, [model]);
+    }, [loadedPlayer]);
+
+    const fallback = useMemo(() => createFallback(), []);
 
     useFrame((state, delta) => {
       if (paused || !groupRef.current) return;
@@ -115,30 +144,34 @@ export const PlayerVisual = forwardRef<THREE.Group, { paused: boolean }>(
         ? Math.abs(Math.sin(phase.current)) * Math.min(0.028, worldSpeed * 0.004)
         : 0;
 
-      model.position.y = breath + bob;
+      if (loadedPlayer) {
+        loadedPlayer.model.position.y = breath + bob;
 
-      for (const entry of rig) {
-        let offset = 0;
+        for (const entry of rig) {
+          let offset = 0;
 
-        if (entry.name === "thigh.L") offset = stride;
-        if (entry.name === "thigh.R") offset = -stride;
-        if (entry.name === "upper_arm.L") offset = -armSwing;
-        if (entry.name === "upper_arm.R") offset = armSwing;
-        if (entry.name === "spine") offset = -stride * 0.08;
-        if (entry.name === "spine.001") offset = stride * 0.05;
-        if (entry.name === "Root") offset = stride * 0.04;
+          if (entry.name === "thigh.L") offset = stride;
+          if (entry.name === "thigh.R") offset = -stride;
+          if (entry.name === "upper_arm.L") offset = -armSwing;
+          if (entry.name === "upper_arm.R") offset = armSwing;
+          if (entry.name === "spine") offset = -stride * 0.08;
+          if (entry.name === "spine.001") offset = stride * 0.05;
+          if (entry.name === "Root") offset = stride * 0.04;
 
-        if (offset === 0) {
-          entry.bone.quaternion.copy(entry.rest);
-          continue;
+          if (offset === 0) {
+            entry.bone.quaternion.copy(entry.rest);
+            continue;
+          }
+
+          const rotation = new THREE.Quaternion().setFromAxisAngle(
+            new THREE.Vector3(1, 0, 0),
+            offset,
+          );
+          entry.bone.quaternion.copy(entry.rest).multiply(rotation);
         }
-
-        const rotation = new THREE.Quaternion().setFromAxisAngle(
-          new THREE.Vector3(1, 0, 0),
-          offset,
-        );
-        entry.bone.quaternion.copy(entry.rest).multiply(rotation);
       }
+
+      animateFallback(fallback, moving, stride, breath, bob, state.clock.elapsedTime);
     });
 
     const setGroupRef = (node: THREE.Group | null) => {
@@ -150,6 +183,109 @@ export const PlayerVisual = forwardRef<THREE.Group, { paused: boolean }>(
       }
     };
 
-    return <group ref={setGroupRef}>{model && <primitive object={model} />}</group>;
+    return (
+      <group ref={setGroupRef}>
+        {loadedPlayer
+          ? <primitive object={loadedPlayer.model} />
+          : fallback.group}
+      </group>
+    );
   },
 );
+
+function createFallback() {
+  const group = new THREE.Group();
+
+  const material = new THREE.MeshStandardMaterial({
+    color: "#3d73b8",
+    roughness: 0.8,
+  });
+  const dark = new THREE.MeshStandardMaterial({
+    color: "#17202a",
+    roughness: 0.9,
+  });
+
+  const torso = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.28, 0.65, 5, 10),
+    material,
+  );
+  torso.position.y = 0.98;
+
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.28, 16, 12),
+    material,
+  );
+  head.position.y = 1.63;
+
+  const visor = new THREE.Mesh(
+    new THREE.BoxGeometry(0.32, 0.08, 0.025),
+    dark,
+  );
+  visor.position.set(0, 1.64, -0.275);
+
+  const leftArm = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.1, 0.55, 4, 8),
+    material,
+  );
+  const rightArm = leftArm.clone();
+  leftArm.position.set(-0.39, 1.03, 0);
+  rightArm.position.set(0.39, 1.03, 0);
+
+  const leftLeg = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.11, 0.62, 4, 8),
+    dark,
+  );
+  const rightLeg = leftLeg.clone();
+  leftLeg.position.set(-0.16, 0.44, 0);
+  rightLeg.position.set(0.16, 0.44, 0);
+
+  const meshes = [
+    torso,
+    head,
+    visor,
+    leftArm,
+    rightArm,
+    leftLeg,
+    rightLeg,
+  ];
+
+  for (const mesh of meshes) {
+    mesh.castShadow = true;
+    group.add(mesh);
+  }
+
+  return {
+    group,
+    parts: {
+      leftLeg,
+      rightLeg,
+      leftArm,
+      rightArm,
+      head,
+    },
+  };
+}
+
+function animateFallback(
+  fallback: ReturnType<typeof createFallback>,
+  moving: boolean,
+  stride: number,
+  breath: number,
+  bob: number,
+  time: number,
+) {
+  const {
+    leftLeg,
+    rightLeg,
+    leftArm,
+    rightArm,
+    head,
+  } = fallback.parts;
+
+  leftLeg.rotation.x = moving ? stride : 0;
+  rightLeg.rotation.x = moving ? -stride : 0;
+  leftArm.rotation.x = moving ? -stride * 0.65 : 0;
+  rightArm.rotation.x = moving ? stride * 0.65 : 0;
+  head.position.y = 1.63 + breath;
+  fallback.group.position.y = bob;
+}
