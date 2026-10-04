@@ -52,12 +52,14 @@ function PlayerController({ bridge, paused }: { bridge: GameBridge; paused: bool
     }
 
     const actions = input.sample();
-    // Positive X input = look right. Camera orbit uses the opposite yaw sign.
-    yawRef.current -= actions.lookX;
+    // Semantic contract: +lookX = turn camera right, +lookY = look up.
+    yawRef.current += actions.lookX;
     pitchRef.current = THREE.MathUtils.clamp(pitchRef.current + actions.lookY, -1.05, 0.35);
 
-    const forward = new THREE.Vector3(Math.sin(yawRef.current), 0, -Math.cos(yawRef.current));
-    const right = new THREE.Vector3(Math.cos(yawRef.current), 0, Math.sin(yawRef.current));
+    // Three.js world: +Y up, camera/player forward = -Z, +X = right.
+    // Movement is camera-relative, so W follows camera forward and D follows camera right.
+    const forward = new THREE.Vector3(-Math.sin(yawRef.current), 0, -Math.cos(yawRef.current));
+    const right = new THREE.Vector3(Math.cos(yawRef.current), 0, -Math.sin(yawRef.current));
     const direction = new THREE.Vector3()
       .addScaledVector(forward, actions.moveY)
       .addScaledVector(right, actions.moveX);
@@ -85,7 +87,8 @@ function PlayerController({ bridge, paused }: { bridge: GameBridge; paused: bool
     if (visualRef.current) {
       visualRef.current.position.y = actions.crouch ? -0.12 : 0;
       if (magnitude > 0.05) {
-        const desiredYaw = Math.atan2(direction.x, -direction.z);
+        // Player visual forward is local -Z, therefore +X world direction is -90deg.
+        const desiredYaw = Math.atan2(-direction.x, -direction.z);
         let deltaYaw = desiredYaw - characterYaw.current;
         deltaYaw = Math.atan2(Math.sin(deltaYaw), Math.cos(deltaYaw));
         characterYaw.current += deltaYaw * (1 - Math.exp(-14 * delta));
