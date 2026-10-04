@@ -66,4 +66,4 @@ This prevents the common third-person failure modes of wall penetration, camera 
 
 ## Player visual pipeline
 
-The player uses the rigged asset stored in src/player. The GLTF and BIN are treated as Vite assets through import.meta.url, while the GLTF loader redirects its external BIN URI to the emitted asset URL. The source asset currently contains a rig but no animation clips, so the R3F runtime applies a lightweight procedural gait to the main leg, arm and spine bones.
+The player uses the rigged asset stored in src/player. The GLTF and BIN are treated as Vite assets through import.meta.url, while the GLTF loader redirects its external BIN URI to the emitted asset URL. The source asset currently contains a rig but no animation clips, so the R3F runtime applies a lightweight procedural gait to the main leg, arm and spine bones. Asset loading is non-blocking; while the GLTF is loading, or if it fails, the original procedural character is rendered as a safe fallback so physics, camera and input remain alive.
