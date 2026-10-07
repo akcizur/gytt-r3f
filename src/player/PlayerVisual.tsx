@@ -10,111 +10,101 @@ import {
 } from "./PlayerAnimationSystem";
 
 const PLAYER_HEIGHT_METERS = 1.8;
-
-const MODEL_URL = new URL("./Rigged character.gltf", import.meta.url).href;
-const BIN_URL = new URL("./Rigged character.bin", import.meta.url).href;
+const MODEL_URL = `${import.meta.env.BASE_URL}player/mannequin/scene.gltf`;
 
 type Props = {
   paused: boolean;
   animationStateRef: RefObject<PlayerAnimationState>;
 };
 
-export const PlayerVisual = forwardRef<THREE.Group, Props>(
-  function PlayerVisual({ paused, animationStateRef }, forwardedRef) {
-    const groupRef = useRef<THREE.Group>(null);
-    const modelRef = useRef<THREE.Group | null>(null);
-    const animationRef = useRef<PlayerAnimationController | null>(null);
+export const PlayerVisual = forwardRef<THREE.Group, Props>(function PlayerVisual(
+  { paused, animationStateRef },
+  forwardedRef,
+) {
+  const groupRef = useRef<THREE.Group>(null);
+  const animationRef = useRef<PlayerAnimationController | null>(null);
 
-    useEffect(() => {
-      let cancelled = false;
+  useEffect(() => {
+    let disposed = false;
+    const loader = new GLTFLoader();
 
-      const manager = new THREE.LoadingManager();
-      manager.setURLModifier((url) => {
-        if (
-          url.endsWith("Rigged%20character.bin") ||
-          url.endsWith("Rigged character.bin")
-        ) {
-          return BIN_URL;
-        }
-        return url;
-      });
+    loader.load(
+      MODEL_URL,
+      (gltf) => {
+        if (disposed || !groupRef.current) return;
 
-      const loader = new GLTFLoader(manager);
+        const model = SkeletonUtils.clone(gltf.scene) as THREE.Group;
 
-      loader.load(
-        MODEL_URL,
-        (gltf) => {
-          if (cancelled) return;
+        // The supplied mannequin is Z-up. Convert the model to the engine's Y-up convention.
+        model.rotation.x = Math.PI / 2;
+        model.updateMatrixWorld(true);
 
-          const model = SkeletonUtils.clone(gltf.scene) as THREE.Group;
-          const bounds = new THREE.Box3().setFromObject(model);
-          const size = bounds.getSize(new THREE.Vector3());
+        let bounds = new THREE.Box3().setFromObject(model);
+        const height = Math.max(0.001, bounds.max.y - bounds.min.y);
 
-          if (size.y > 0.001) {
-            model.scale.multiplyScalar(PLAYER_HEIGHT_METERS / size.y);
+        // Normalize to an adult human height of exactly 1.80 m.
+        model.scale.setScalar(PLAYER_HEIGHT_METERS / height);
+        model.updateMatrixWorld(true);
+
+        // Feet are the authoritative ground anchor. No floating and no sinking.
+        bounds = new THREE.Box3().setFromObject(model);
+        model.position.y -= bounds.min.y;
+        model.updateMatrixWorld(true);
+
+        model.traverse((object) => {
+          if (!(object as THREE.Mesh).isMesh) return;
+          const mesh = object as THREE.Mesh;
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          mesh.frustumCulled = true;
+
+          const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+          for (const material of materials) {
+            if (!(material instanceof THREE.MeshStandardMaterial)) continue;
+            material.metalness = Math.max(material.metalness, 0.72);
+            material.roughness = Math.min(material.roughness, 0.34);
           }
+        });
 
-          const normalizedBounds = new THREE.Box3().setFromObject(model);
-          model.position.y -= normalizedBounds.min.y;
+        animationRef.current?.dispose();
+        animationRef.current = new PlayerAnimationController(
+          model,
+          createPlayerAnimationClips(model),
+        );
 
-          // Authoritative floor anchor: the lowest visible vertex is exactly Y=0.
-          const anchoredBounds = new THREE.Box3().setFromObject(model);
-          if (Math.abs(anchoredBounds.min.y) > 0.0001) {
-            model.position.y -= anchoredBounds.min.y;
-          }
-          model.rotation.y = Math.PI;
-
-          model.traverse((object) => {
-            const mesh = object as THREE.Mesh;
-            if (!mesh.isMesh) return;
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
-            mesh.frustumCulled = true;
-          });
-
-          animationRef.current?.dispose();
-
-          const clips = createPlayerAnimationClips(model);
-          animationRef.current = new PlayerAnimationController(model, clips);
-          modelRef.current = model;
-
-          if (groupRef.current) {
-            groupRef.current.clear();
-            groupRef.current.add(model);
-          }
-        },
-        undefined,
-        () => {
-          modelRef.current = null;
-          animationRef.current?.dispose();
-          animationRef.current = null;
-        },
-      );
-
-      return () => {
-        cancelled = true;
+        groupRef.current.clear();
+        groupRef.current.add(model);
+      },
+      undefined,
+      () => {
         animationRef.current?.dispose();
         animationRef.current = null;
-      };
-    }, []);
+      },
+    );
 
-    useFrame((_, delta) => {
-      if (paused || !animationRef.current) return;
-
-      animationRef.current.play(animationStateRef.current);
-      animationRef.current.update(delta);
-    });
-
-    const setGroupRef = (node: THREE.Group | null) => {
-      groupRef.current = node;
-
-      if (typeof forwardedRef === "function") {
-        forwardedRef(node);
-      } else if (forwardedRef) {
-        forwardedRef.current = node;
-      }
+    return () => {
+      disposed = true;
+      animationRef.current?.dispose();
+      animationRef.current = null;
     };
+  }, []);
 
-    return <group ref={setGroupRef} />;
-  },
-);
+  useFrame((_, delta) => {
+    if (paused || !animationRef.current) return;
+
+    animationRef.current.play(animationStateRef.current);
+    animationRef.current.update(delta);
+  });
+
+  const setGroupRef = (node: THREE.Group | null) => {
+    groupRef.current = node;
+
+    if (typeof forwardedRef === "function") {
+      forwardedRef(node);
+    } else if (forwardedRef) {
+      forwardedRef.current = node;
+    }
+  };
+
+  return <group ref={setGroupRef} />;
+});
