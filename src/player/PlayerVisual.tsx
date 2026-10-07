@@ -22,6 +22,7 @@ export const PlayerVisual = forwardRef<THREE.Group, Props>(function PlayerVisual
   forwardedRef,
 ) {
   const groupRef = useRef<THREE.Group>(null);
+  const fallbackRef = useRef<THREE.Group>(null);
   const animationRef = useRef<PlayerAnimationController | null>(null);
 
   useEffect(() => {
@@ -35,24 +36,23 @@ export const PlayerVisual = forwardRef<THREE.Group, Props>(function PlayerVisual
 
         const model = SkeletonUtils.clone(gltf.scene) as THREE.Group;
 
-        // The supplied mannequin is Z-up. Convert the model to the engine's Y-up convention.
+        // Source asset is Z-up. The runtime is Y-up.
         model.rotation.x = Math.PI / 2;
         model.updateMatrixWorld(true);
 
         let bounds = new THREE.Box3().setFromObject(model);
         const height = Math.max(0.001, bounds.max.y - bounds.min.y);
-
-        // Normalize to an adult human height of exactly 1.80 m.
         model.scale.setScalar(PLAYER_HEIGHT_METERS / height);
         model.updateMatrixWorld(true);
 
-        // Feet are the authoritative ground anchor. No floating and no sinking.
+        // Exact floor anchor: lowest visible point is Y=0.
         bounds = new THREE.Box3().setFromObject(model);
         model.position.y -= bounds.min.y;
         model.updateMatrixWorld(true);
 
         model.traverse((object) => {
           if (!(object as THREE.Mesh).isMesh) return;
+
           const mesh = object as THREE.Mesh;
           mesh.castShadow = true;
           mesh.receiveShadow = true;
@@ -74,11 +74,12 @@ export const PlayerVisual = forwardRef<THREE.Group, Props>(function PlayerVisual
 
         groupRef.current.clear();
         groupRef.current.add(model);
+
+        if (fallbackRef.current) fallbackRef.current.visible = false;
       },
       undefined,
       () => {
-        animationRef.current?.dispose();
-        animationRef.current = null;
+        if (fallbackRef.current) fallbackRef.current.visible = true;
       },
     );
 
@@ -106,5 +107,35 @@ export const PlayerVisual = forwardRef<THREE.Group, Props>(function PlayerVisual
     }
   };
 
-  return <group ref={setGroupRef} />;
+  return (
+    <>
+      <group ref={setGroupRef} />
+      <group ref={fallbackRef} visible>
+        <mesh position={[0, 0.48, 0]} castShadow>
+          <capsuleGeometry args={[0.22, 0.52, 8, 16]} />
+          <meshStandardMaterial color="#0b6f94" metalness={0.8} roughness={0.28} />
+        </mesh>
+        <mesh position={[0, 0.98, 0]} castShadow>
+          <sphereGeometry args={[0.22, 20, 14]} />
+          <meshStandardMaterial color="#0b6f94" metalness={0.8} roughness={0.28} />
+        </mesh>
+        <mesh position={[-0.15, 0.23, 0]} castShadow>
+          <capsuleGeometry args={[0.08, 0.34, 8, 12]} />
+          <meshStandardMaterial color="#0b6f94" metalness={0.78} roughness={0.3} />
+        </mesh>
+        <mesh position={[0.15, 0.23, 0]} castShadow>
+          <capsuleGeometry args={[0.08, 0.34, 8, 12]} />
+          <meshStandardMaterial color="#0b6f94" metalness={0.78} roughness={0.3} />
+        </mesh>
+        <mesh position={[-0.38, 0.55, 0]} rotation-z={-0.16} castShadow>
+          <capsuleGeometry args={[0.07, 0.38, 8, 12]} />
+          <meshStandardMaterial color="#0b6f94" metalness={0.78} roughness={0.3} />
+        </mesh>
+        <mesh position={[0.38, 0.55, 0]} rotation-z={0.16} castShadow>
+          <capsuleGeometry args={[0.07, 0.38, 8, 12]} />
+          <meshStandardMaterial color="#0b6f94" metalness={0.78} roughness={0.3} />
+        </mesh>
+      </group>
+    </>
+  );
 });
